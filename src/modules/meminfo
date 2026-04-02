@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+
+self_start=false
+show_help=false
+
+get_memory_size() {
+    awk '/MemTotal/ {print}' /proc/meminfo
+}
+
+get_memory_available(){
+    awk '/MemAvailable/ {print}' /proc/meminfo
+}
+
+get_full_memory_info() {
+    awk '/MemTotal|MemFree|MemAvailable|Buffers|^Cached:/ {print}' /proc/meminfo
+}
+
+get_swap_size() {
+    awk '/SwapTotal/ {print}' /proc/meminfo
+}
+
+get_swap() {
+    awk '/SwapTotal|SwapFree|^SwapCached/ {print}' /proc/meminfo
+}
+
+show_help_message() {
+    echo "Usage: ./current_state.sh [OPTIONS]"
+    echo "  -s, --selfstart    run module as a single bash script"
+    echo "  -h, --help         show help"
+}
+
+test_memory() {
+    local mem_total
+    local mem_available
+    local page_size
+
+    [[ -r /proc/meminfo ]] || {
+        echo "Error: /proc/meminfo is not readable" >&2
+        return 1
+    }
+
+    mem_total=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+    mem_available=$(awk '/MemAvailable/ {print $2}' /proc/meminfo)
+    page_size=$(getconf PAGE_SIZE 2>/dev/null)
+
+    [[ -n "$mem_total" ]] || {
+        echo "Error: failed to read MemTotal" >&2
+        return 1
+    }
+
+    [[ -n "$mem_available" ]] || {
+        echo "Error: failed to read MemAvailable" >&2
+        return 1
+    }
+
+    [[ -n "$page_size" ]] || {
+        echo "Error: failed to read PAGE_SIZE" >&2
+        return 1
+    }
+
+    [[ "$mem_total" =~ ^[0-9]+$ ]] || {
+        echo "Error: MemTotal is not numeric" >&2
+        return 1
+    }
+
+    [[ "$mem_available" =~ ^[0-9]+$ ]] || {
+        echo "Error: MemAvailable is not numeric" >&2
+        return 1
+    }
+
+    [[ "$page_size" =~ ^[0-9]+$ ]] || {
+        echo "Error: PAGE_SIZE is not numeric" >&2
+        return 1
+    }
+
+    if (( mem_total <= 0 || mem_available < 0 || page_size <= 0 )); then
+        echo "Error: invalid memory values" >&2
+        return 1
+    fi
+
+    echo "Logic memory test passed"
+    return 0
+}
+
+ 
+
+main() {
+    echo "=== Memory info ==="
+    get_full_memory_info
+    echo
+    echo "=== Swap info ==="
+    get_swap
+    echo
+    echo "=== Memory logic test ==="
+    test_memory
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -s|--selfstart)
+            self_start=true
+            shift
+            ;;
+        -h|--help)
+            show_help=true
+            shift
+            ;;
+        *)
+            echo "Unknown argument: $1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+if [[ "$show_help" == true ]]; then
+    show_help_message
+    exit 0
+fi
+
+if [[ "$self_start" == true ]]; then
+    main
+    exit 0
+fi
