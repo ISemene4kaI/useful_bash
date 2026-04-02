@@ -1,0 +1,14 @@
+#!/bin/bash
+current_dir=$(pwd)
+current_user=$(whoami)
+
+if [[ -z "$current_dir" ]]; then
+	current_dir="Couldnt get"
+fi
+
+if [[ -z "$current_user" ]]; then
+	current_dir="Couldnt get"
+fi
+
+echo "The current directory is: $current_dir"
+echo "The user logged in is: $current_user"
