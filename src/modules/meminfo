@@ -12,9 +12,31 @@ get_memory_available(){
 }
 
 get_full_memory_info() {
-    awk '/MemTotal|MemFree|MemAvailable|Buffers|^Cached:/ {print}' /proc/meminfo
-}
+    local mem_total mem_free mem_available buffers cached
+    local mem_usage mem_available_percent mem_usage_percent
 
+    read -r mem_total mem_free mem_available buffers cached <<< "$(
+        awk '
+            /^MemTotal:/ {mt=$2}
+            /^MemFree:/ {mf=$2}
+            /^MemAvailable:/ {ma=$2}
+            /^Buffers:/ {b=$2}
+            /^Cached:/ {c=$2}
+            END {print mt, mf, ma, b, c}
+        ' /proc/meminfo
+    )"
+
+    mem_usage=$((mem_total - mem_available))
+    mem_available_percent=$((mem_available * 100 / mem_total))
+    mem_usage_percent=$((mem_usage * 100 / mem_total))
+
+    echo "MemTotal: $mem_total kB"
+    echo "MemFree: $mem_free kB"
+    echo "MemAvailable: $mem_available kB | ${mem_available_percent}%"
+    echo "MemUsage: $mem_usage kB | ${mem_usage_percent}%"
+    echo "Buffers: $buffers kB"
+    echo "Cached: $cached kB"
+}
 get_swap_size() {
     awk '/SwapTotal/ {print}' /proc/meminfo
 }

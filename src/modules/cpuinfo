@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+
+self_start=false
+show_help=false
+show_model=false
+ 
+get_cpu_threads() {
+    echo "Threads: $(nproc)"
+}
+
+get_cpu_cores() {
+    echo "Cores: $(awk -F': ' '/cpu cores/ {print $2; exit}' /proc/cpuinfo)"
+}
+
+get_cpu_family() {
+    echo "Family: $(awk -F': ' '/model name/ {print $2; exit}' /proc/cpuinfo | awk -F'w/' '{print $1; exit}')"
+    echo "Vendor ID: $(awk -F': ' '/vendor_id/ {print $2; exit}' /proc/cpuinfo | awk -F'w/' '{print $1; exit}')"
+}
+
+get_average_mhz() {
+    local mhz_summ
+    mhz_summ=0
+    mhz_objects=0
+    for mhz in $(awk -F': ' '/cpu MHz/ {print $2}' /proc/cpuinfo | awk -F'.' '{print $1}'); 
+    do
+       let "mhz_summ=$mhz_summ + $mhz"
+       let mhz_objects++
+    done
+    
+    let "average_mhz=$mhz_summ / $mhz_objects"
+    echo "Average MHz: $average_mhz"
+}
+
+get_cpu_usage() {
+    local count=3
+    local i
+
+    local cpu1 cpu2
+    local user1 nice1 system1 idle1 iowait1 irq1 softirq1 steal1
+    local user2 nice2 system2 idle2 iowait2 irq2 softirq2 steal2
+    local total1 total2 total_delta idle_delta usage
+
+    for ((i=1; i<=count; i++)); do
+        read -r cpu1 user1 nice1 system1 idle1 iowait1 irq1 softirq1 steal1 _ < /proc/stat
+        sleep 1
+        read -r cpu2 user2 nice2 system2 idle2 iowait2 irq2 softirq2 steal2 _ < /proc/stat
+
+        total1=$((user1 + nice1 + system1 + idle1 + iowait1 + irq1 + softirq1 + steal1))
+        total2=$((user2 + nice2 + system2 + idle2 + iowait2 + irq2 + softirq2 + steal2))
+
+        total_delta=$((total2 - total1))
+        idle_delta=$(((idle2 + iowait2) - (idle1 + iowait1)))
+
+        if (( total_delta == 0 )); then
+            usage=0
+        else
+            usage=$(((total_delta - idle_delta) * 100 / total_delta))
+        fi
+
+        echo "$i sec: CPU Usage ${usage}%"
+    done
+}
+
+main() {
+    echo "=== CPU info ==="
+    get_cpu_cores
+    get_cpu_threads
+    echo
+    echo "=== CPU Stress ==="
+    get_average_mhz
+    get_cpu_usage
+    echo
+    if [[ "$show_model" == true ]]; then
+        echo "=== CPU Family ==="
+        get_cpu_family
+        echo
+    fi
+  
+}
+
+show_help_message() {
+    echo "Usage: ./current_state.sh [OPTIONS]"
+    echo
+    echo "Options:"
+    echo "  -s, --selfstart    run module as a single bash script"
+    echo "  -h, --help         show help message"
+    echo "  -m, --model		add cpu family to output"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -s|--selfstart)
+            self_start=true
+            shift
+            ;;
+        -h|--help)
+            show_help=true
+            shift
+            ;;
+        -m|--model)
+            show_model=true
+            shift
+            ;;
+        *)
+            echo "Unknown argument: $1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+if [[ "$show_help" == true ]]; then
+    show_help_message
+    exit 0
+fi
+
+if [[ "$self_start" == true ]]; then
+    main
+    exit 0
+fi
